@@ -6,7 +6,7 @@ import { feishuRef, feishuSettings } from '../sources/feishu.ts'
 import type { SourceRegistry } from '../sources/registry.ts'
 import { triggerMessage } from '../executor/dsh.ts'
 import { relatedTickets, ticketCard, triggerCard } from './cards.ts'
-import type { Store } from './store.ts'
+import type { Storage as Store } from './storage.ts'
 import type { TextCache } from './cache.ts'
 
 export interface LinkHost {

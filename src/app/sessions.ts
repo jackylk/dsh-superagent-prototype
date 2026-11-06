@@ -16,7 +16,7 @@ import { RetryHealth } from './retry-health.ts'
 import { initializeRoleModel } from './role-models.ts'
 import { bundledSkills } from './skill-files.ts'
 import { SKILL_PREFIX, type PromptVersion, type Prompts } from './prompts.ts'
-import type { Store } from './store.ts'
+import type { Storage as Store } from './storage.ts'
 import { KV } from '../kv.ts'
 import type { RegisterTool, Tool } from './tools/tool.ts'
 
@@ -347,6 +347,8 @@ export class Sessions {
       try { dispose() } catch (error) { this.ctx.logger.warn('dsh-superagent could not release what it registered for a Session: %s', String(error)) }
     }
   }
+  /** Loaded main/worker agents available for shutdown when storage is unavailable. */
+  loadedAgents(): Agent[] { return [...this.bindings].filter(([, binding]) => !binding.subagent).map(([agent]) => agent) }
   /** Releases prompt sections, skills, and tools registered by `Sessions` across all decorated agents. */
   dispose(): void { for (const agent of [...this.bindings.keys()]) this.release(agent) }
 }

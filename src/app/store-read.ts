@@ -1,9 +1,9 @@
 /** Read-only Store queries for views, tools, and Source polling. */
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite'
 import type { Decision, Thread, Trigger } from '../core/index.ts'
-import type { Dropped, Receipt, TimelinePlace } from './store.ts'
+import type { Dropped, Receipt, TimelinePlace, StorageReads } from './storage.ts'
 
-export function storeReads(db: DatabaseSync) {
+export function storeReads(db: DatabaseSync): StorageReads {
   const values = <T>(sql: string, ...parameters: SQLInputValue[]): T[] => db.prepare(sql).all(...parameters).map(row => JSON.parse(String(row.value)) as T)
   return {
   /** Newest first by arrival (`rowid`) order rather than trigger timestamp. */

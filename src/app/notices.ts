@@ -4,7 +4,7 @@ import { followupOwners, key, liveTicket, type DomainEvent, type Ticket, type Wo
 import { triggerMessage } from '../executor/dsh.ts'
 import type { SourceRegistry } from '../sources/registry.ts'
 import { repliedTo } from './links.ts'
-import type { Store } from './store.ts'
+import type { Storage as Store } from './storage.ts'
 import { ticketCard } from './cards.ts'
 
 /**

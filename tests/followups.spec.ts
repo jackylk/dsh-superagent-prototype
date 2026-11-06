@@ -124,7 +124,7 @@ it('keeps a follow-up\'s notice in the effect queue until the main Session takes
   h.runtime.receive(message)
   await h.runtime.idle()
   // The notice is stored with the intake's transaction, keyed by its Trigger, and a duplicate message adds nothing.
-  expect(h.runtime.store.db.prepare("SELECT key FROM effect WHERE kind = 'relay'").all()).toEqual([{ key: `followup:${message.id}` }])
+  expect(h.runtime.store.effects.pending('relay', `followup:${message.id}`)).toBe(true)
   expect(h.runtime.receive(followup('2', '补充一点'))).toBe('duplicate')
   vi.useFakeTimers({ toFake: ['Date'], now: Date.now() + 2000 })
   try { await h.runtime.pump(); await h.runtime.idle() } finally { vi.useRealTimers() }

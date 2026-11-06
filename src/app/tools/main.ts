@@ -11,7 +11,7 @@ import { PromptConfigSchema, savePrompts, type Prompts } from '../prompts.ts'
 import { readResource, type MainResourceHost, type ResourceHost } from '../resources.ts'
 import type { Sessions } from '../sessions.ts'
 import type { Settings } from '../settings.ts'
-import type { Store } from '../store.ts'
+import type { Storage as Store } from '../storage.ts'
 import { AcknowledgementSchema, readTool, tool, type Tool } from './tool.ts'
 
 const RoutingNoteSchema = z.string().trim()

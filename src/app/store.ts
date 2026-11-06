@@ -10,19 +10,9 @@ import { OLDEST_SCHEMA, SCHEMA_VERSION, migrateTo11, tooOld } from './migration.
 import { Versions } from './versions.ts'
 import { storeReads } from './store-read.ts'
 
-/** A Trigger's position on its thread timeline, ordered by timestamp and then `id` as tie-breaker. */
-export interface TimelinePlace { at: string; id: string }
-/** Why a message was dropped: its conversation can never receive it (`channelGone`), or its Source no longer listens to it (`channelIgnored`). */
-export type DropReason = 'channelGone' | 'channelIgnored'
-/** Outbound message receipt tracked in the outbox from the moment it is queued (`pending`, `sent`, or `dropped`); delivery attempt counts live on its `reply` effect. */
-export interface Receipt extends OutboundMessage { status: ReplyStatus; dropped?: { at: string; reason: DropReason } }
-/** A dropped outbound message receipt, with the timestamp and reason it was dropped. */
-export type Dropped = Receipt & { dropped: { at: string; reason: DropReason } }
-/** Saved settings snapshot with the policy version and ticket notifications it produced (`internal` saves have no origin). */
-export interface SettingsVersion {
-  revision: number; savedAt: string; source: SettingsOrigin | 'internal'; block?: SettingsSave
-  policyVersion: string; policyChanged: boolean; notified: string[]; settings: Settings
-}
+import { sqliteEffects } from './sqlite-effects.ts'
+import type { Storage, EffectRecords, TimelinePlace, DropReason, Receipt, Dropped, SettingsVersion } from './storage.ts'
+export type { TimelinePlace, DropReason, Receipt, Dropped, SettingsVersion } from './storage.ts'
 /**
  * Generated columns and partial indexes defining active working sets so passes scan only active rows.
  * Older databases missing a column get it added on open and populated by SQLite from stored JSON rows.
@@ -48,8 +38,9 @@ export { SCHEMA_VERSION }
  * The Runtime opens it after locking the state directory and automatically migrates supported older schemas on startup.
  * The Engine mutates domain aggregates inside `atomic` transactions while Sources, views, and the Outbox read state or update their own records.
  */
-export class Store implements Repositories {
+export class Store implements Storage {
   readonly db: DatabaseSync
+  readonly effects: EffectRecords
   /**
    * Opens or creates the SQLite database at `path`, migrating schema 10 to schema 11 in a single transaction.
    * @param report - Receives errors thrown by `afterCommit` callbacks without failing the committed transaction.
@@ -58,6 +49,7 @@ export class Store implements Repositories {
   constructor(path: string, private readonly report: (error: unknown) => void = () => {}) {
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
     this.db = new DatabaseSync(path)
+    this.effects = sqliteEffects(this.db)
     this.read = storeReads(this.db)
     try {
       chmodSync(path, 0o600)
