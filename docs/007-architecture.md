@@ -290,6 +290,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 
 | Path | Responsibility |
 | --- | --- |
+| `src/storage.ts` | Public synchronous storage API and the provider registry plugin entry |
 | `src/index.ts` | The main plugin entry: reads the machine settings, starts the Runtime, and gives it the restart that a save of a Source's account uses |
 | `src/deployment.ts` | The plugin `Config` and `Machine`; `resolveDeployment` and `resolveFeishuBot` read the repository and the accounts from the Source settings, each CLI run as Executor shells run it; `SETUP_FIELDS` lists the Source fields setup reads. The code names no person, account or organization |
 | `src/setup.ts` | Setup problems: `SetupError`, with a code, the place that fixes it and the English text the log, the main Session and the panel share |
@@ -318,7 +319,10 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/app/passes.ts` | Passes, the pass scheduler |
 | `src/app/outbox.ts` | The Outbox: the Engine's `Outbox` port, the receipts and the `reply` effects that send them |
 | `src/app/notices.ts` | The main Session's notices and relays: `eventNotice`, `reportRelay`, `resultRelay` and `followupRelay` |
-| `src/app/store.ts` | The Store, and `Receipt`, a message of the outbox |
+| `src/app/store.ts` | Default SQLite implementation and its historical migrations |
+| `src/app/storage.ts` | Semantic synchronous `Storage`, read views, receipts, effect records and factory contract; no SQL handles |
+| `src/app/storage-providers.ts` | Named provider registration, bounded startup resolution and removal notification; built-in SQLite factory |
+| `src/app/sqlite-effects.ts` | SQLite effect persistence in the same connection and transaction as the records |
 | `src/app/store-read.ts` | `storeReads`: the Store's read queries for the views, the tools and the Sources' polls, which never write |
 | `src/app/migration.ts` | The schema 11 migration: one step from schema 10 that writes every stored record in its current shape |
 | `src/app/effects.ts` | Effects |
@@ -431,6 +435,8 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/views.spec.ts` | What the management views derive from the Store, such as the Thread a dropped message belongs to |
 | `tests/timeline.spec.ts` | A Thread's pages and a Trigger's neighbours by time and then id, with every received Trigger's time in one form |
 | `tests/migration.spec.ts` | The schema 11 migration: every stored record in its current shape, and the refusal of older schemas |
+| `tests/storage-contract.spec.ts` | Shared semantic contract on SQLite, also invoked by the optional provider suite |
+| `tests/storage-providers.spec.ts` | Default and explicit provider selection, missing provider failure, transactional effects and generation protection |
 | `tests/store.spec.ts` | Repositories and their working sets, in SQLite as in memory, the kv area, with every key of `KV` spelled only in `src/kv.ts` and the migration, settings history and queries |
 | `tests/prompts.spec.ts` | Prompt validation, assembly and versions |
 | `tests/cards.spec.ts` | The rules the built-in text must state, file by file |
@@ -449,7 +455,13 @@ Some generic modules still refer directly to GitHub or Feishu:
 
 ## Persistence
 
-One SQLite file, `<stateDir>/orchestrator.sqlite`, which only the Store opens.
+The default provider opens one SQLite file, `<stateDir>/orchestrator.sqlite`. Application code uses the synchronous `Storage` contract; only adapters and SQLite migrations access SQL. The Engine's existing `Repositories` interface and dispatch policy remain unchanged.
+
+`Storage` adds typed KV/settings, read views, receipts and durable effect records. `atomic` returns a value directly; nested rollback discards that level’s writes and commit callbacks. `afterCommit` runs only after a successful outer commit. Effects and business records share one transaction; effect sequence/generation prevent stale attempts from deleting updated work. Providers implement these semantics rather than translating SQLite SQL at runtime.
+
+The `dsh-superagent/storage` entry provides `superagentStorage`. The main entry resolves `storage.backend` (default `sqlite`) before constructing Runtime, then calls its synchronous factory with `stateDir`, provider-owned `options`, an error reporter and an unavailability callback. Resolution tolerates plugin load order for up to five seconds. An unavailable or removed provider fails explicitly; there is no fallback to a different database. Runtime stops intake and cancels loaded agents if storage becomes unavailable.
+
+Optional provider bundles own their SQL/schema, driver dependencies, ownership rules and migration tools. They import the public storage API rather than core internals. Backend selection does not migrate data. Providers must document instance isolation and failure semantics. The table descriptions below describe the default SQLite schema and its domain records.
 
 | Table | Holds | Written by |
 | --- | --- | --- |

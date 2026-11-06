@@ -6,7 +6,7 @@ import { masterPrompt, workerPrompt, sharedPrompt, guides, mainAdmissionPolicy, 
 import { environmentLines, type Variable } from './execution-environment.ts'
 import { promptsNotice } from './notices.ts'
 import type { Sessions } from './sessions.ts'
-import type { Store } from './store.ts'
+import type { Storage as Store } from './storage.ts'
 import { Versions } from './versions.ts'
 import { KV } from '../kv.ts'
 

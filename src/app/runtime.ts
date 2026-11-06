@@ -24,7 +24,8 @@ import { DshExecutor, sourceTrigger, triggerMessage, workerSessionId } from '../
 import { ticketCard } from './cards.ts'
 import { MasterAssessor } from './assessment.ts'
 import { KV } from '../kv.ts'
-import { Store } from './store.ts'
+import type { Storage as Store, StorageFactory } from './storage.ts'
+import { sqliteStorage } from './storage-providers.ts'
 import { evalsHealth } from './views/overview.ts'
 import { TextCache } from './cache.ts'
 import { Effects } from './effects.ts'
@@ -78,13 +79,15 @@ export class Runtime extends Service implements SourceHost {
   private readonly stopped = new AbortController()
   private readonly disposers: (() => void)[] = []
   private releaseLock?: () => Promise<void>
+  private storageLost = false
+  private storageReady = false
   private closingFlag = false
   private stopping?: Promise<void>
   private readonly sourceDeps: SourceContextDeps
   private readonly toolHost: MainToolsHost & ExecutorToolsHost
   /** Non-zero while a main-Session tool is executing an Engine command, suppressing self-triggered domain event notices. */
   private quiet = 0
-  constructor(ctx: Context, readonly machine: Machine, restart: () => void) {
+  constructor(ctx: Context, readonly machine: Machine, restart: () => void, openStorage: StorageFactory = sqliteStorage) {
     super(ctx, 'orchestrator')
     const runtime = this
     // Lock the state directory before opening the database so another process cannot migrate or write concurrently.
@@ -95,7 +98,7 @@ export class Runtime extends Service implements SourceHost {
     let opened: Store | undefined
     try {
       const report = (error: unknown) => { ctx.logger.warn('dsh-superagent: %s', String(error)) }
-      const store = opened = this.store = new Store(join(machine.stateDir, 'orchestrator.sqlite'), report)
+      const store = opened = this.store = openStorage({ stateDir: machine.stateDir, options: machine.storage?.options ?? {}, report, onUnavailable: error => this.storageUnavailable(error) })
       const setup = this.setup = new Setup({ context: ctx, machine, lifetime: this.lifetime, restart })
       const deployed = () => setup.configured()
         ? environmentOf({ deployment: setup.deployment, sources: this.sources, settings: store.settings() }) : undefined
@@ -163,6 +166,7 @@ export class Runtime extends Service implements SourceHost {
         get github() { return runtime.context({ kind: 'github', health: ['github'] }) },
         requestPass: () => { passes.request() }, sendReplies: () => outbox.sent(),
         quietly: run => { this.quiet++; try { return run() } finally { this.quiet-- } } }
+      this.storageReady = true
       this.ready = this.initialize()
     } catch (error) {
       // Release the database and state lock if initialization fails so an in-process restart can reacquire them.
@@ -225,18 +229,35 @@ export class Runtime extends Service implements SourceHost {
       configured: () => setup.configured(), links: () => runtime.links(), ticketEnvironment: ticket => runtime.ticketEnvironment(ticket),
       checkSetup: () => { setup.check() }, requestPass: () => { passes.request() }, models: () => this.ctx.sessionController.modelCatalog() }
   }
+  /** Stop dependent work when a provider loses its connection or is removed. */
+  storageUnavailable(error: Error): void {
+    this.storageLost = true
+    this.runtimeHealth.set({ state: 'error', detail: error.message })
+    this.stopped.abort()
+    if (this.storageReady) void this.stop().catch(failure => { this.ctx.logger.warn('dsh-superagent storage shutdown failed: %s', String(failure)) })
+  }
   /** Idempotent stop; concurrent or repeated calls share the same shutdown promise. */
-  stop(): Promise<void> { return this.stopping ??= this.shutdown() }
+  stop(): Promise<void> {
+    this.closingFlag = true; this.stopped.abort()
+    return this.stopping ??= Promise.resolve().then(() => this.shutdown())
+  }
   private async shutdown(): Promise<void> {
     this.closingFlag = true; const passes = this.passes.stop(); this.stopped.abort()
     try {
       this.assessor.stop()
-      const ids = [this.masterId, ...this.store.tickets.list().map(ticket => workerSessionId(ticket.id))]
-      const agents = ids.map(id => this.ctx.agents.get(id as SessionId)).filter((agent): agent is Agent => agent !== undefined)
+      let agents: Agent[]
+      try {
+        agents = this.storageLost ? this.sessions.loadedAgents()
+          : [this.masterId, ...this.store.tickets.list().map(ticket => workerSessionId(ticket.id))]
+            .map(id => this.ctx.agents.get(id as SessionId)).filter((agent): agent is Agent => agent !== undefined)
+      } catch (error) {
+        if (!this.storageLost) throw error
+        agents = this.sessions.loadedAgents()
+      }
       for (const agent of agents) agent.cancel({ kind: 'user' }, { keepInbox: true })
       await Promise.allSettled([passes, this.effects.drain(), ...agents.map(agent => agent.whenIdle())])
       // The workers' jobs and subagents stop too: their ends would start worker turns without the tool limits released below.
-      await this.executor.shutdown()
+      await this.executor.shutdown(this.storageLost ? agents.filter(agent => agent.id !== this.masterId) : undefined)
       this.executor.dispose()
       this.sessions.dispose()
       for (const dispose of this.disposers.reverse()) dispose()

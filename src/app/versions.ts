@@ -1,6 +1,6 @@
 /** Versioned record storage backed by numbered snapshots and a current-revision pointer in the Store KV table. */
 import type { Family, Key } from '../kv.ts'
-import type { Store } from './store.ts'
+import type { Storage as Store } from './storage.ts'
 
 /**
  * Manages numbered snapshots of a versioned record in the `Store` key-value table with a pointer key tracking the active revision.

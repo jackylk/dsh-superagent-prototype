@@ -2,7 +2,7 @@
 import type { FieldSpec } from '../sources/kind.ts'
 import type { SourceRegistry } from '../sources/registry.ts'
 import { KV } from '../kv.ts'
-import type { Store, SettingsVersion } from './store.ts'
+import type { Storage as Store, SettingsVersion } from './storage.ts'
 
 type SourceSettings = SettingsVersion['settings']['sources'][string]
 /** Change codes localized by the web panel as `change.<code>`. */

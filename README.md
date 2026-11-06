@@ -37,3 +37,7 @@ Read the numbered documents in order; each builds only on the ones before it.
 ## License
 
 [MIT](LICENSE)
+
+### Optional storage providers
+
+SQLite remains the default. A synchronous semantic storage API is exported at `dsh-superagent/storage`; optional DSH bundles can register named providers without changing the Engine or application SQL. Select a provider through the main entry's `storage.backend` and `storage.options`. See [deployment](docs/006-deployment.md) for selection and restart behavior.

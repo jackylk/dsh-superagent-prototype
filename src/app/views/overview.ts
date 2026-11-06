@@ -3,7 +3,7 @@ import { reasonText, ticketStage, type Decision, type Thread } from '../../core/
 import type { Health } from '../../sources/host.ts'
 import type { SetupProblem } from '../../setup.ts'
 import { anyoneAllowed } from '../../policy.ts'
-import type { Store } from '../store.ts'
+import type { Storage as Store } from '../storage.ts'
 import { awaitingEval, dayAgo, newestFirst, ownersOf, snapshot, threadSummary, type ViewHost } from './records.ts'
 import { sourceHealth, type HealthMap } from './sources.ts'
 import { ticketRow, type ExecutorLoad } from './tickets.ts'

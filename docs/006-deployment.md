@@ -272,3 +272,9 @@ Setup problems appear on the overview with a link to the fix, in the panel's lan
 | The log says the plugin is incompatible with the running dsh | Install a DeepSeek Harness version within the `engines.dsh` range |
 | The panel shows "Failed to load plugins" after a DeepSeek Harness upgrade | Restart the running instance |
 | Nothing happens after a mention | Check that the author is on the Source's allowed list, the Source is on, and processing is not paused. On GitHub, a mention added by editing an Issue's body is not received; mention the agent in a comment |
+
+## Storage provider selection
+
+Existing profiles default to SQLite. Keep the bundle's `dsh-superagent-storage` registry entry enabled. Optional providers register a synchronous factory with it; the main entry depends on the registry. Configure the main entry with `storage: { backend: <provider-name>, options: <provider-owned-options> }`. Changing storage restarts the entry. Missing providers produce an explicit startup error, and provider removal stops the running instance.
+
+Provider-specific drivers, configuration and migration tools belong to their optional bundles. The core package can be built, installed and used with SQLite without any external database driver. No automatic data transfer occurs when selecting a provider.

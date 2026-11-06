@@ -4,7 +4,7 @@ import { KV } from '../../kv.ts'
 import { policyVersion } from '../../policy.ts'
 import type { SourceRegistry } from '../../sources/registry.ts'
 import { declaredVariables, executionRoot } from '../execution-environment.ts'
-import type { Store } from '../store.ts'
+import type { Storage as Store } from '../storage.ts'
 import { problemOf, sourceHealth, type HealthMap, type SetupState } from './sources.ts'
 
 function policyOf(sources: SourceRegistry, id: string, health: HealthMap) {

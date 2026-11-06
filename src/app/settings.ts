@@ -11,7 +11,7 @@ import { resolveRoleModel } from './role-models.ts'
 import { changedPaths, settingsNotice } from './notices.ts'
 import type { Sessions } from './sessions.ts'
 import { setupChanged, type Setup } from './setup.ts'
-import type { Store } from './store.ts'
+import type { Storage as Store } from './storage.ts'
 import { KV } from '../kv.ts'
 
 /**
