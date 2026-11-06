@@ -1,0 +1,3 @@
+- insert:
+    - id: dsh-superagent-storage-lakebase
+      name: dsh-superagent-storage-lakebase

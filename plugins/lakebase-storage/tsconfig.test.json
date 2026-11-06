@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "dsh-superagent/storage": [
+        "../../src/storage.ts"
+      ]
+    }
+  },
+  "include": [
+    "../../src/**/*.ts",
+    "../../src/**/*.tsx",
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "*.ts"
+  ]
+}
