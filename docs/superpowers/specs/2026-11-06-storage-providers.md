@@ -6,6 +6,106 @@
 
 本分支从 main 创建，原 `feat/lakebase-storage` 分支保留。开发范围包括设计文档、核心扩展点、SQLite 适配、Lakebase 插件及验证，不包含 PR、推送、生产部署或修改用户日常 GUI profile。
 
+## 架构总览（PR 说明参考）
+
+核心业务依赖同步 `Storage` 接口，SQLite 与 Lakebase 分别实现它。注册中心负责选择工厂；图中的注册关系与业务数据访问关系分开表示。
+
+```text
+                  用户配置
+          storage.backend + options
+                       |
+                       v
++----------------------------------------------------------+
+|                  SuperAgent 核心仓库                      |
+|                                                          |
+|  DSH 主插件入口                                           |
+|        |                                                 |
+|        v                                                 |
+|  StorageProviders 注册中心                                |
+|        |                                                 |
+|        +-- sqlite  ---------> 内置 SQLite 工厂             |
+|        |                                                 |
+|        +-- lakebase --------> 外部插件注册的工厂            |
+|        |                                                 |
+|        | 解析所选工厂，交给 Runtime                         |
+|        v                                                 |
+|  Runtime                                                 |
+|        |                                                 |
+|        +--> Engine / Sessions / Tools / 管理 API           |
+|        |                                                 |
+|        +--> Effects：调度、并发、重试                       |
+|                       |                                  |
+|                       v                                  |
+|              同步 Storage 接口                            |
+|              +----------------------------------+        |
+|              | 领域记录：Trigger / Ticket 等     |        |
+|              | KV / 设置 / 历史 / 读取视图        |        |
+|              | 收据 / EffectRecords             |        |
+|              | atomic / afterCommit / close     |        |
+|              +----------------------------------+        |
+|                       ^                                  |
+|                       | 实现                             |
+|              +-------------------+                       |
+|              | SQLite Store      |                       |
+|              | SQLite SQL / 迁移 |                       |
+|              +---------+---------+                       |
++------------------------|---------------------------------+
+                         |
+                         v
+              <stateDir>/orchestrator.sqlite
+
+
+              同一个同步 Storage 接口
+                         ^
+                         | 实现
++------------------------|---------------------------------+
+|              独立 Lakebase 插件包                         |
+|              plugins/lakebase-storage                    |
+|                                                          |
+|  插件入口 -- 注册 lakebase --> 核心 StorageProviders      |
+|                                                          |
+|              LakebaseStorage                             |
+|                       |                                  |
+|              PostgreSQL SQL / Schema                     |
+|              读取视图 / EffectRecords                    |
+|                       |                                  |
+|              pg-native / libpq                           |
+|              原生同步调用 + 严格 TLS                      |
++-----------------------|----------------------------------+
+                        |
+                        v
+              DBay.cloud Lakebase
+              每个 SuperAgent 实例独立一个数据库
+```
+
+Engine 使用 `Storage` 继承的 `Repositories` 领域接口；其他应用模块使用设置、读取视图、收据等扩展能力。运行时只实例化所选后端。两种后端均保持同步调用，没有 Worker 桥接；只有启动时等待 provider 注册是异步的。
+
+一次业务写入的事务关系：
+
+```text
+Engine / 业务命令
+       |
+       v
+Storage.atomic(() => {
+    保存领域记录
+    更新 KV / 收据
+    写入 EffectRecords
+})
+       |
+       +-- 失败 --> 一起回滚
+       |
+       +-- 提交成功 --> afterCommit --> Effects 执行外部动作
+```
+
+准备 PR 时可沿用当前两条提交的评审边界：
+
+| 提交 | 评审范围 |
+| --- | --- |
+| `725b424`：通用同步存储扩展 | Storage 接口、provider 注册中心、Runtime 接入、SQLite 适配、公共导出、测试及核心文档；可独立评审，不依赖 Lakebase 插件 |
+| `a13365e`：独立 Lakebase 插件 | 插件注册、原生 PG 驱动、SQL/schema、离线导入、专项测试、workspace 配置及设计/验收文档 |
+
+实际验证范围与当时相对 main 的改动统计见 [重构验证记录](../plans/2026-11-06-storage-providers-validation.md)。后续修改应重新计算 PR diff；该记录保留本次验收时的统计。
+
 ## 核心接口
 
 `src/app/storage.ts` 定义同步 `Storage`，扩展 Engine 现有的 `Repositories`：
